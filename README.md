@@ -1,2 +1,6 @@
-# COMP3010-A3
-Python Web Server and Java RMI
+# Python Web Server and Java RMI
+### COMP 3010 Winter 2018 Assignment 3
+
+## Overview
+
+## Running the Code
