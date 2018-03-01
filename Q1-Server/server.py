@@ -12,6 +12,7 @@
 """
 
 import socket
+import os.path
 
 HOST = ''
 ASSIGNED_PORT_NUM = 15048
@@ -56,6 +57,30 @@ def getClientMessage(clientsocket):
     return ''.join(clientMessageArray)
 
 
+def getPathAndGETParams(fileRequestPath):
+    """
+    Get the file path and any GET parameters from the request path the client
+    sent. Returns the path and params in a tuple (<path>, <params>). If the path
+    is /, both strings are empty, if there are no parameters, the parameters
+    string is empty.
+    Parameters:
+        - fileRequestPath: A path of the form <path>?<params>
+    Returns:
+        - The full path (./<path>), and any parameters after the '?'
+    """
+    filePath = ""
+    parameters = ""
+
+    if fileRequestPath != '/':
+        if fileRequestPath.find('?') != -1:
+            filePath, parameters = fileRequest.split('?')
+        else:
+            filePath = fileRequest
+        filePath = '.' + filePath
+
+    return (filePath, parameters)
+
+
 # ------------------------------------------------------------------------------
 # Start of Processing
 # ------------------------------------------------------------------------------
@@ -73,11 +98,32 @@ try:
     # Receive data from Client
     clientMessage = getClientMessage(clientSocket)
     clientLines = clientMessage.split('\n')
-    requestMethod, requestFile = (clientLines[0].split(' '))[0:2]
+    requestMethod = (clientLines[0].split(' '))[0]
 
     print "Client sent {req} request".format(req=requestMethod)
-    print "Client wants file: {f}".format(f=requestFile)
-    print "Exiting..."
+
+    if requestMethod == "GET":
+        fileRequest = (clientLines[0].split(' '))[1]
+        (filePath, parameters) = getPathAndGETParams(fileRequest)
+
+        if (os.path.exists(filePath)):
+            # Execute script if CGI
+            if filePath.find('.cgi') != -1:
+                print "{0} is a script.".format(filePath)
+            # Otherwise spit the file out to the client
+            else:
+                print "{0} is a regular file.".format(fileRequest)
+        else:
+            # Serve 404 page
+            print "404: file {0} does not exist.".format(filePath)
+
+    elif requestMethod == "POST":
+        # Not supported (yet)
+        pass
+
+    else:
+        # Unsupported.
+        pass
 
 except KeyboardInterrupt as k:
     print "\nProgram interrupted. Exiting..."
