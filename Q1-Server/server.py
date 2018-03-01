@@ -15,10 +15,35 @@ import socket
 
 HOST = ''
 ASSIGNED_PORT_NUM = 15048
-MAX_PACKET_SIZE = 2048
+MAX_PACKET_SIZE = 512
 address = (HOST, ASSIGNED_PORT_NUM)
 clientSocket = None
 serverSocket = None
+
+
+# ------------------------------------------------------------------------------
+# Start of Processing
+# ------------------------------------------------------------------------------
+def getClientMessage(clientsocket):
+    """
+    Get the client's message from its socket, and return a string containing it
+    Parameters:
+        - clientsocket: The socket the client is connected to
+    """
+    clientMessage = "\0"
+    clientMessageArray = []
+
+    # Wait for newline character
+    while clientMessage[-1] != '\n':
+        clientMessage = clientsocket.recv(MAX_PACKET_SIZE)
+        clientMessageArray.append(clientMessage)
+
+    return ''.join(clientMessageArray)
+
+
+# ------------------------------------------------------------------------------
+# Start of Processing
+# ------------------------------------------------------------------------------
 
 try:
     # Create server socket, listen and accept connections
@@ -30,17 +55,8 @@ try:
     clientSocket, clientAddress = serverSocket.accept()
 
     # Receive data from Client
-    """
-    allDataRecvd = False
-    while allDataRecvd == False:
-        clientData = clientSocket.recv(2048).decode()
-        if not clientData:
-            allDataRecvd = True
-        else:
-            print "Waiting..."
-
-    print clientData
-    """
+    clientMessage = getClientMessage(clientSocket)
+    print clientMessage
 
 except KeyboardInterrupt as k:
     print "\nProgram interrupted. Exiting..."
@@ -52,5 +68,5 @@ finally:
     if clientSocket:
         clientSocket.close()
     if serverSocket:
-        serverSocket.close()
+       serverSocket.close()
 
