@@ -22,8 +22,9 @@ serverSocket = None
 
 
 # ------------------------------------------------------------------------------
-# Start of Processing
+# Function definitions
 # ------------------------------------------------------------------------------
+
 def getClientMessage(clientsocket):
     """
     Get the client's message from its socket, and return a string containing it
