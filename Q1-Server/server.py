@@ -16,7 +16,6 @@ import socket
 HOST = ''
 ASSIGNED_PORT_NUM = 15048
 MAX_PACKET_SIZE = 512
-address = (HOST, ASSIGNED_PORT_NUM)
 clientSocket = None
 serverSocket = None
 
@@ -24,6 +23,21 @@ serverSocket = None
 # ------------------------------------------------------------------------------
 # Function definitions
 # ------------------------------------------------------------------------------
+
+def startServer(addr, numConnections):
+    """
+    Create a server socket for the specified address and return the socket
+    Parameters:
+        - addr: Host address and port number in a list (<address>, <port>)
+        - numConnections: The max number of connections to allow
+    """
+    ssocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    ssocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    ssocket.bind(address)
+    ssocket.listen(numConnections)
+    print "Server is listening for connections on port {0}".format(addr[1])
+    return ssocket
+
 
 def getClientMessage(clientsocket):
     """
@@ -48,16 +62,22 @@ def getClientMessage(clientsocket):
 
 try:
     # Create server socket, listen and accept connections
-    serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    serverSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    serverSocket.bind(address)
-    serverSocket.listen(socket.SOMAXCONN)
-    print "Server is listening for connections on port {0}".format(ASSIGNED_PORT_NUM)
+    address = (HOST, ASSIGNED_PORT_NUM)
+    serverSocket = startServer(address, socket.SOMAXCONN)
     clientSocket, clientAddress = serverSocket.accept()
+
+    print "\nAccepted the client connection:"
+    print "Address: {0}".format(clientAddress[0])
+    print "   Port: {0}\n".format(clientSocket.getsockname()[1])
 
     # Receive data from Client
     clientMessage = getClientMessage(clientSocket)
-    print clientMessage
+    clientLines = clientMessage.split('\n')
+    requestMethod, requestFile = (clientLines[0].split(' '))[0:2]
+
+    print "Client sent {req} request".format(req=requestMethod)
+    print "Client wants file: {f}".format(f=requestFile)
+    print "Exiting..."
 
 except KeyboardInterrupt as k:
     print "\nProgram interrupted. Exiting..."
