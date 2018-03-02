@@ -12,10 +12,11 @@
 """
 
 import socket
-import os.path
+import os
+import subprocess
 
 HOST = ''
-ASSIGNED_PORT_NUM = 15048
+ASSIGNED_PORT_NUM = 15048 # The socket I was assigned in class
 MAX_PACKET_SIZE = 512
 clientSocket = None
 serverSocket = None
@@ -110,6 +111,21 @@ try:
             # Execute script if CGI
             if filePath.find('.cgi') != -1:
                 print "{0} is a script.".format(filePath)
+
+                with open(filePath, 'r') as f:
+                    fileData = f.readlines()
+
+                execution = fileData[0];
+
+                if (len(execution) < 2 or execution[0:3].find('#!') == -1):
+                    print "Script is not executable"
+                else:
+                    prog = execution[2:].replace('\n', '')
+                    # Execute the program
+                    procEnv = os.environ.copy()
+                    # --- Modify environment --- procEnv['VAR'] = var
+                    proc = subprocess.Popen([prog, filePath], env=procEnv)
+
             # Otherwise spit the file out to the client
             else:
                 print "{0} is a regular file.".format(fileRequest)
@@ -119,7 +135,7 @@ try:
 
     elif requestMethod == "POST":
         # Not supported (yet)
-        pass
+        print clientMessage
 
     else:
         # Unsupported.
