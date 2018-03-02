@@ -67,19 +67,35 @@ def getPathAndGETParams(fileRequestPath):
     Parameters:
         - fileRequestPath: A path of the form <path>?<params>
     Returns:
-        - The full path (./<path>), and any parameters after the '?'
+        - The full path (./<path>), and any parameters after the '?' in a dict
     """
     filePath = ""
-    parameters = ""
+    parameters = {}
 
     if fileRequestPath != '/':
         if fileRequestPath.find('?') != -1:
-            filePath, parameters = fileRequest.split('?')
+            filePath, paramString = fileRequest.split('?')
+            if paramString:
+                for keyvalue in paramString.split('&'):
+                    (key, val) = keyvalue.split('=')
+                    parameters[key] = val
         else:
             filePath = fileRequest
         filePath = '.' + filePath
 
     return (filePath, parameters)
+
+
+def createHttpMessageWithHeaders(status, statusMsg, output):
+    """
+    Creates HTTP header ... (FINISH)
+    Parameters:
+        - status: Integer HTTP status code
+        - output: String output to send to the client
+    """
+    messageArray = []
+    messageArray.append("HTTP/1.0 {code} {msg}".format(code=status, msg=statusMsg)
+    return ''.join(messageArray)
 
 
 # ------------------------------------------------------------------------------
@@ -100,7 +116,6 @@ try:
     clientMessage = getClientMessage(clientSocket)
     clientLines = clientMessage.split('\n')
     requestMethod = (clientLines[0].split(' '))[0]
-
     print "Client sent {req} request".format(req=requestMethod)
 
     if requestMethod == "GET":
@@ -110,7 +125,6 @@ try:
         if (os.path.exists(filePath)):
             # Execute script if CGI
             if filePath.find('.cgi') != -1:
-                print "{0} is a script.".format(filePath)
 
                 with open(filePath, 'r') as f:
                     fileData = f.readlines()
