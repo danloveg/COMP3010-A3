@@ -53,15 +53,7 @@ def getClientMessage(clientsocket):
     Parameters:
         - clientsocket: The socket the client is connected to
     """
-    clientMessage = "\0"
-    clientMessageArray = []
-
-    # Wait for newline character
-    while clientMessage[-1] != '\n':
-        clientMessage = clientsocket.recv(MAX_PACKET_SIZE)
-        clientMessageArray.append(clientMessage)
-
-    return ''.join(clientMessageArray)
+    return clientsocket.recv(MAX_PACKET_SIZE)
 
 
 def getPathAndGETParams(fileRequestedPath):
@@ -109,7 +101,7 @@ def executeScript(csocket, filepath, parameters):
         header = createHttpHeaders(200, 'OK', True)
     else:
         header = createHttpHeaders(500, 'Internal Server Error', False, 'text/html')
-        sendHeaderAndFile(csocket, header, ERR_PAGE_500)
+        respondToClient(csocket, header, ERR_PAGE_500)
         return
 
     # Create environment
@@ -117,25 +109,17 @@ def executeScript(csocket, filepath, parameters):
     for param in parameters:
         procEnv[param] = parameters[param]
 
-    # Respond to client
-    try:
-        socketFile = csocket.makefile('w')
-        socketFile.write(header)
-        proc = subprocess.Popen([prog, filePath], env=procEnv, stdout=socketFile)
-    except Exception:
-        traceback.print_exc()
-    finally:
-        if socketFile: socketFile.close()
+    execInformation['program'] = prog
+    execInformation['environment'] = procEnv
+
+    respondToClient(csocket, header, filepath, True, execInformation)
 
 
 def outputFileToClient(csocket, filepath):
     """
-    Creates an appropriate header and uses sendHeaderAndFile to send the header
-    and file to the client. Only txt and html files are allowed.
+    Creates an appropriate header and uses respondToClient to send the header
+    and file to the client. Only txt, html, and js files are allowed.
     """
-    supported = False
-    socketFile = None
-
     fType = filepath.split('.')[-1]
     supported = True if fType in SUPPORTED_TYPES else False
 
@@ -148,22 +132,37 @@ def outputFileToClient(csocket, filepath):
         header = createHttpHeaders(501, 'Not Implemented', False, 'text/html')
         filePath = ERR_PAGE_501
 
-    # Respond to client
-    sendHeaderAndFile(csocket, header, filepath)
+    respondToClient(csocket, header, filepath)
 
 
-def sendHeaderAndFile(csocket, header, filepath):
+def respondToClient(csocket, header, filepath, script=False, execInfo=None):
     """
-    Send the header and contents of file to the client connected on the socket
+    Send the header and contents of a file to the client or execute a script and
+    pipe the output of it to the client.
+    Parameters:
+    - csocket: The socket the client is connected to
+    - header: The header to write to the client
+    - filepath: The path of the file to send or execute
+    - script: True if executing script at filepath, else False
+    - execInfo: Contains environment and script interpreter in a dictionary.
+      (eg., execInfo['program']='/usr/bin/perl', execInfo['environment']=os.environ.copy())
     """
     socketFile = None
 
     try:
         socketFile = csocket.makefile('w')
         socketFile.write(header)
-        with open(filepath, 'r') as f:
-            for line in f:
-                socketFile.write(line)
+        # If not a script, output the file
+        if not script:
+            with open(filepath, 'r') as f:
+                for line in f:
+                    socketFile.write(line)
+        # If script, create a subprocess and execute it
+        elif script and execInfo != None:
+            environment = execInfo['environment']
+            program = execInfo['program']
+            proc = subprocess.Popen([program, filePath], env=environment, stdout=socketFile)
+
     except Exception:
         traceback.print_exc()
     finally:
@@ -172,10 +171,15 @@ def sendHeaderAndFile(csocket, header, filepath):
 
 def createHttpHeaders(status, statusMsg, cgi=False, contentType=None):
     """
-    Creates HTTP header ... (FINISH)
+    Creates HTTP header with a status code and message. If the header is for a 
+    CGI script, only the first line is included. If the header is not for a CGI
+    script but a regular file, the first line, Content-Type, and the blank line
+    is included.
     Parameters:
-        - status: Integer HTTP status code
-        - output: String output to send to the client
+        - status: Integer HTTP status code (eg., 200)
+        - statusMsg: Message to go along with status (eg., OK)
+        - cgi: Set to true if header is for a CGI script
+        - contentType: Type of content header is for (eg., text/html)
     Returns:
         String containing the HTTP header
     """
@@ -183,8 +187,7 @@ def createHttpHeaders(status, statusMsg, cgi=False, contentType=None):
     messageArray.append('HTTP/1.0 {code} {msg}\n'.format(code=status, msg=statusMsg))
 
     if not cgi and contentType:
-        messageArray.append('Content-Type:{0}\n'.format(contentType))
-        messageArray.append('\n')
+        messageArray.append('Content-Type:{0}\n\n'.format(contentType))
 
     return ''.join(messageArray)
 
@@ -224,7 +227,7 @@ try:
             else:
                 # File does not exist. Send 404
                 header = createHttpHeaders(404, 'Not Found', False, 'text/html')
-                sendHeaderAndFile(clientSocket, header, ERR_PAGE_404)
+                respondToClient(clientSocket, header, ERR_PAGE_404)
 
         elif requestMethod == "POST":
             # Not supported (yet)
