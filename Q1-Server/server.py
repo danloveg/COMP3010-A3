@@ -14,13 +14,17 @@
 import socket
 import os
 import subprocess
+import traceback
 
 HOST = ''
 ASSIGNED_PORT_NUM = 15048 # The socket I was assigned in class
 MAX_PACKET_SIZE = 512
 clientSocket = None
-clientFile   = None
+socketFile   = None
 serverSocket = None
+ERR_PAGE_404 = './errorPages/404page.html'
+ERR_PAGE_500 = './errorPages/500page.html'
+ERR_PAGE_501 = './errorPages/501page.html'
 
 
 # ------------------------------------------------------------------------------
@@ -59,29 +63,30 @@ def getClientMessage(clientsocket):
     return ''.join(clientMessageArray)
 
 
-def getPathAndGETParams(fileRequestPath):
+def getPathAndGETParams(fileRequestedPath):
     """
     Get the file path and any GET parameters from the request path the client
     sent. Returns the path and params in a tuple (<path>, <params>). If the path
     is /, both strings are empty, if there are no parameters, the parameters
     string is empty.
     Parameters:
-        - fileRequestPath: A path of the form <path>?<params>
+        - fileRequestedPath: A path of the form <path>?<params>
     Returns:
         - The full path (./<path>), and any parameters after the '?' in a dict
     """
     filePath = ""
     parameters = {}
 
-    if fileRequestPath != '/':
-        if fileRequestPath.find('?') != -1:
-            filePath, paramString = fileRequest.split('?')
+    if fileRequestedPath != '/':
+        if fileRequestedPath.find('?') != -1:
+            filePath, paramString = fileRequestedPath.split('?')
             if paramString:
                 for keyvalue in paramString.split('&'):
                     (key, val) = keyvalue.split('=')
                     parameters[key] = val
         else:
-            filePath = fileRequest
+            filePath = fileRequestedPath
+
         filePath = '.' + filePath
 
     return (filePath, parameters)
@@ -89,100 +94,76 @@ def getPathAndGETParams(fileRequestPath):
 
 def executeScript(csocket, filepath, parameters):
     """
-    Comments.
+    Executes the script requested by the client's GET request.
     """
-    executable = True
+    socketFile = None
 
     with open(filepath, 'r') as f:
-        fileData = f.readlines()
+        firstLine = f.readline()
 
-    execution = fileData[0];
+    prog = firstLine[2:] if len(firstLine) > 2 and firstLine[0:3].find('#!') != -1 else None
+    prog = prog.replace('\n', '')
 
-    # Determine if executable
-    if (execution and len(execution) < 2 or execution[0:3].find('#!') == -1):
-        executable = False
-
-    if executable:
-        # Set up the execution of the program
-        prog = execution[2:].replace('\n', '')
-
-        # Create environment
-        procEnv = os.environ.copy()
-        for param in parameters:
-            procEnv[param] = parameters[param]
-
-        # Create OK header
+    if prog:
         header = createHttpHeaders(200, 'OK', True)
-
     else:
-        # Create Internal Server Error header
         header = createHttpHeaders(500, 'Internal Server Error', False, 'text/html')
+        sendHeaderAndFile(csocket, header, ERR_PAGE_500)
+        return
 
-    # Create a file to pipe stdout from script to
-    socketFile = csocket.makefile('w')
+    # Create environment
+    procEnv = os.environ.copy()
+    for param in parameters:
+        procEnv[param] = parameters[param]
 
-    if socketFile:
-        try:
-            socketFile.write(header)
-            if executable:
-                proc = subprocess.Popen([prog, filePath], env=procEnv, stdout=socketFile)
-            else:
-                socketFile.write('<!DOCTYPE html>\n<body>')
-                socketFile.write('<h1>500 Internal Server Error</h1>')
-                socketFile.write('<p>The script requested is not executable.</p>')
-                socketFile.write('</body>\n</html>')
-
-        except Exception as e:
-            print 'Error: {0}'.format(e)
-        finally:
-            socketFile.close()
-    else:
-        print 'Could not make client file.'
+    # Respond to client
+    try:
+        socketFile = csocket.makefile('w')
+        socketFile.write(header)
+        proc = subprocess.Popen([prog, filePath], env=procEnv, stdout=socketFile)
+    except Exception:
+        traceback.print_exc()
+    finally:
+        if socketFile: socketFile.close()
 
 
 def outputFileToClient(csocket, filepath):
-    notImpl = False
-    fileLines = []
+    """
+    Creates an appropriate header and uses sendHeaderAndFile to send the header
+    and file to the client. Only txt and html files are allowed.
+    """
+    supported = False
+    socketFile = None
 
     fType = filepath.split('.')[-1]
+    supported = True if fType == 'txt' or fType == 'html' else False
 
-    if fType == 'txt' or fType == 'html':
-        # File is OK, read it
-        with open(filepath, 'r') as f:
-            fileLines = f.readlines()
-
-        # Create OK header
+    if supported:
         header = createHttpHeaders(200, 'OK', False, 'text/html')
     else:
-        # Create Not Implemented header
         header = createHttpHeaders(501, 'Not Implemented', False, 'text/html')
-        # header = 'HTTP/1.0 501 Not Implemented\nContent-Type:text/html\n\n'
-        notImpl = True
+        filePath = ERR_PAGE_501
 
-    # Get socket file handle
-    clientFile = csocket.makefile('w')
+    # Respond to client
+    sendHeaderAndFile(csocket, header, filepath)
 
-    if clientFile:
-        try:
-            # Send appropriate header
-            clientFile.write(header)
 
-            # Send file
-            if notImpl == False:
-                for line in fileLines:
-                    clientFile.write(line)
+def sendHeaderAndFile(csocket, header, filepath):
+    """
+    Send the header and contents of file to the client connected on the socket
+    """
+    socketFile = None
 
-            # Otherwise send 501 message.
-            else:
-                clientFile.write('<!DOCTYPE html>\n<body>')
-                clientFile.write('<h1>501 Not Implemented</h1>')
-                clientFile.write('<p>This file type is not supported.</p>')
-                clientFile.write('</body>\n</html>')
-
-        except Exception as e:
-            print 'Error: {0}'.format(e)
-        finally:
-            clientFile.close()
+    try:
+        socketFile = csocket.makefile('w')
+        socketFile.write(header)
+        with open(filepath, 'r') as f:
+            for line in f:
+                socketFile.write(line)
+    except Exception:
+        traceback.print_exc()
+    finally:
+        if socketFile: socketFile.close()
 
 
 def createHttpHeaders(status, statusMsg, cgi=False, contentType=None):
@@ -226,20 +207,20 @@ try:
         requestMethod = (clientLines[0].split(' '))[0]
 
         if requestMethod == "GET":
-            fileRequest = (clientLines[0].split(' '))[1]
-            (filePath, parameters) = getPathAndGETParams(fileRequest)
+            fileRequested = (clientLines[0].split(' '))[1]
+            (filePath, parameters) = getPathAndGETParams(fileRequested)
 
             if (os.path.exists(filePath)):
                 # Execute script if CGI
                 if filePath.find('.cgi') != -1:
                     executeScript(clientSocket, filePath, parameters)
-
                 # Otherwise spit the file out to the client
                 else:
                     outputFileToClient(clientSocket, filePath)
             else:
-                # Serve 404 page
-                print "404: file {0} does not exist.".format(filePath)
+                # File does not exist. Send 404
+                header = createHttpHeaders(404, 'Not Found', False, 'text/html')
+                sendHeaderAndFile(clientSocket, header, ERR_PAGE_404)
 
         elif requestMethod == "POST":
             # Not supported (yet)
@@ -249,15 +230,16 @@ try:
             # Unsupported.
             pass
 
+        # Close client socket when done
+        if clientSocket: clientSocket.close()
+
 except KeyboardInterrupt as k:
     print "\nProgram interrupted. Exiting..."
 
 except Exception as e:
-    print "Error: {0}".format(e)
+    traceback.print_exc()
 
 finally:
-    if clientSocket:
-        clientSocket.close()
-    if serverSocket:
-       serverSocket.close()
+    if clientSocket: clientSocket.close()
+    if serverSocket: serverSocket.close()
 
