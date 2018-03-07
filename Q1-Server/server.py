@@ -18,7 +18,8 @@ import traceback
 
 HOST = ''
 ASSIGNED_PORT_NUM = 15048 # The socket I was assigned in class
-MAX_PACKET_SIZE = 512
+MAX_PACKET_SIZE = 2048
+SUPPORTED_TYPES = ['txt', 'html', 'js']
 clientSocket = None
 socketFile   = None
 serverSocket = None
@@ -136,10 +137,13 @@ def outputFileToClient(csocket, filepath):
     socketFile = None
 
     fType = filepath.split('.')[-1]
-    supported = True if fType == 'txt' or fType == 'html' else False
+    supported = True if fType in SUPPORTED_TYPES else False
 
     if supported:
-        header = createHttpHeaders(200, 'OK', False, 'text/html')
+        if fType == 'txt' or fType == 'html':
+            header = createHttpHeaders(200, 'OK', False, 'text/html')
+        elif fType == 'js':
+            header = createHttpHeaders(200, 'OK', False, 'text/javascript')
     else:
         header = createHttpHeaders(501, 'Not Implemented', False, 'text/html')
         filePath = ERR_PAGE_501
