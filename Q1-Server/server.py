@@ -14,6 +14,7 @@
 import socket
 import os
 import subprocess
+from subprocess import PIPE, Popen
 import traceback
 
 HOST = ''
@@ -56,7 +57,7 @@ def getClientMessage(clientsocket):
     return clientsocket.recv(MAX_PACKET_SIZE)
 
 
-def getPathAndGETParams(fileRequestedPath):
+def getPathAndParams(fileRequestedPath):
     """
     Get the file path and any GET parameters from the request path the client
     sent. Returns the path and params in a tuple (<path>, <params>). If the path
@@ -85,11 +86,12 @@ def getPathAndGETParams(fileRequestedPath):
     return (filePath, parameters)
 
 
-def executeScript(csocket, filepath, parameters):
+def executeScript(csocket, filepath, parameters, method):
     """
-    Executes the script requested by the client's GET request.
+    Executes the script requested by the client.
     """
     socketFile = None
+    execInformation = {}
 
     with open(filepath, 'r') as f:
         firstLine = f.readline()
@@ -101,18 +103,22 @@ def executeScript(csocket, filepath, parameters):
         header = createHttpHeaders(200, 'OK', True)
     else:
         header = createHttpHeaders(500, 'Internal Server Error', False, 'text/html')
-        respondToClient(csocket, header, ERR_PAGE_500)
+        respondToClient(csocket, header, ERR_PAGE_500, 'GET')
         return
 
-    # Create environment
-    procEnv = os.environ.copy()
-    for param in parameters:
-        procEnv[param] = parameters[param]
-
     execInformation['program'] = prog
-    execInformation['environment'] = procEnv
 
-    respondToClient(csocket, header, filepath, True, execInformation)
+    if method == 'GET':
+        # Create environment
+        procEnv = os.environ.copy()
+        for param in parameters:
+            procEnv[param] = parameters[param]
+
+        execInformation['environment'] = procEnv
+        respondToClient(csocket, header, filepath, method, True, execInformation)
+    else:
+        execInformation['parameters'] = parameters
+        respondToClient(csocket, header, filepath, method, True, execInformation)
 
 
 def outputFileToClient(csocket, filepath):
@@ -132,10 +138,10 @@ def outputFileToClient(csocket, filepath):
         header = createHttpHeaders(501, 'Not Implemented', False, 'text/html')
         filePath = ERR_PAGE_501
 
-    respondToClient(csocket, header, filepath)
+    respondToClient(csocket, header, filepath, 'GET')
 
 
-def respondToClient(csocket, header, filepath, script=False, execInfo=None):
+def respondToClient(csocket, header, filepath, method, script=False, execInfo=None):
     """
     Send the header and contents of a file to the client or execute a script and
     pipe the output of it to the client.
@@ -152,17 +158,24 @@ def respondToClient(csocket, header, filepath, script=False, execInfo=None):
     try:
         socketFile = csocket.makefile('w')
         socketFile.write(header)
-        # If not a script, output the file
-        if not script:
+        socketFile.flush()
+
+        # If not a script, just output the file
+        if not script and method == 'GET':
             with open(filepath, 'r') as f:
                 for line in f:
                     socketFile.write(line)
-        # If script, create a subprocess and execute it
-        elif script and execInfo != None:
-            environment = execInfo['environment']
+        # If script and GET, execute w/ params in environment
+        elif script and method == 'GET':
             program = execInfo['program']
-            proc = subprocess.Popen([program, filePath], env=environment, stdout=socketFile)
-
+            environment = execInfo['environment']
+            proc = Popen([program, filePath], env=environment, stdout=socketFile)
+        # If script and POST, execute w/ params as stdin
+        elif script and method == 'POST':
+            program = execInfo['program']
+            parameters = execInfo['parameters']
+            proc = Popen([program, filePath], stdin=PIPE, stdout=socketFile)
+            proc.communicate(parameters)
     except Exception:
         traceback.print_exc()
     finally:
@@ -210,32 +223,34 @@ try:
 
         # Receive data from Client
         clientMessage = getClientMessage(clientSocket)
+
+        # Process Client message
         clientLines = clientMessage.split('\n')
-        requestMethod = (clientLines[0].split(' '))[0]
+        firstLine = clientLines[0].split(' ') if clientLines[0] else []
 
-        if requestMethod == "GET":
+        if firstLine and firstLine[0] and firstLine[1]:
+            requestMethod = (clientLines[0].split(' '))[0]
             fileRequested = (clientLines[0].split(' '))[1]
-            (filePath, parameters) = getPathAndGETParams(fileRequested)
+            (filePath, parameters) = getPathAndParams(fileRequested)
 
-            if (os.path.exists(filePath)):
-                # Execute script if CGI
-                if filePath.find('.cgi') != -1:
-                    executeScript(clientSocket, filePath, parameters)
-                # Otherwise spit the file out to the client
+            if requestMethod == 'GET' or requestMethod == 'POST':
+                if (os.path.exists(filePath)):
+                    # Execute script if CGI
+                    if filePath.find('.cgi') != -1:
+                        if requestMethod == 'GET':
+                            executeScript(clientSocket, filePath, parameters, 'GET')
+                        else:
+                            executeScript(clientSocket, filePath, clientLines[-1], 'POST')
+                    # Otherwise spit the file out to the client
+                    else:
+                        outputFileToClient(clientSocket, filePath)
                 else:
-                    outputFileToClient(clientSocket, filePath)
+                    # File does not exist. Send 404
+                    header = createHttpHeaders(404, 'Not Found', False, 'text/html')
+                    respondToClient(clientSocket, header, ERR_PAGE_404, 'GET')
             else:
-                # File does not exist. Send 404
-                header = createHttpHeaders(404, 'Not Found', False, 'text/html')
-                respondToClient(clientSocket, header, ERR_PAGE_404)
-
-        elif requestMethod == "POST":
-            # Not supported (yet)
-            print clientMessage
-
-        else:
-            # Unsupported.
-            pass
+                header = createHttpHeaders(501, 'Not Implemented', False, 'text/html')
+                respondToClient(clientSocket, header, ERR_PAGE_501, 'GET')
 
         # Close client socket when done
         if clientSocket: clientSocket.close()
