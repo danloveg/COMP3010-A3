@@ -228,10 +228,14 @@ try:
         clientLines = clientMessage.split('\n')
         firstLine = clientLines[0].split(' ') if clientLines[0] else []
 
+
         if firstLine and firstLine[0] and firstLine[1]:
             requestMethod = (clientLines[0].split(' '))[0]
             fileRequested = (clientLines[0].split(' '))[1]
             (filePath, parameters) = getPathAndParams(fileRequested)
+
+            if (os.path.isdir(filePath)):
+                filePath = filePath + 'index.html' if filePath[-1] == '/' else '/index.html'
 
             if requestMethod == 'GET' or requestMethod == 'POST':
                 if (os.path.exists(filePath)):
