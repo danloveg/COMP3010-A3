@@ -8,7 +8,9 @@
  Version: Feb 28/2018
 
  Purpose: Act as a web server and serve files to a client using only basic
- sockets. No high level objects are allowed (such as ServerSocket).
+ sockets. No high level objects are allowed (such as ServerSocket). The types of
+ requests allowed are GET and POST, a 501 page is sent if another type is sent.
+ The server descends into the DOCUMENT_ROOT directory before serving files.
 """
 
 import socket
@@ -17,16 +19,22 @@ import subprocess
 from subprocess import PIPE, Popen
 import traceback
 
+# CONSTANTS
 HOST = ''
 ASSIGNED_PORT_NUM = 15048 # The socket I was assigned in class
 MAX_PACKET_SIZE = 2048
+DOCUMENT_ROOT = './site/'
+SERVER_NAME = 'python-web-server'
+SERVER_PROTOCOL = 'HTTP/1.0'
 SUPPORTED_TYPES = ['txt', 'html', 'js']
-clientSocket = None
-socketFile   = None
-serverSocket = None
 ERR_PAGE_404 = './errorPages/404page.html'
 ERR_PAGE_500 = './errorPages/500page.html'
 ERR_PAGE_501 = './errorPages/501page.html'
+
+# GLOBAL VARIABLES
+clientSocket = None
+socketFile   = None
+serverSocket = None
 
 
 # ------------------------------------------------------------------------------
@@ -48,15 +56,6 @@ def startServer(addr, numConnections):
     return ssocket
 
 
-def getClientMessage(clientsocket):
-    """
-    Get the client's message from its socket, and return a string containing it
-    Parameters:
-        - clientsocket: The socket the client is connected to
-    """
-    return clientsocket.recv(MAX_PACKET_SIZE)
-
-
 def getPathAndParams(fileRequestedPath):
     """
     Get the file path and any GET parameters from the request path the client
@@ -66,22 +65,18 @@ def getPathAndParams(fileRequestedPath):
     Parameters:
         - fileRequestedPath: A path of the form <path>?<params>
     Returns:
-        - The full path (./<path>), and any parameters after the '?' in a dict
+        - The full path, and any parameters after the '?' in a string
     """
     filePath = ""
-    parameters = {}
+    parameters = ""
 
     if fileRequestedPath != '/':
         if fileRequestedPath.find('?') != -1:
-            filePath, paramString = fileRequestedPath.split('?')
-            if paramString:
-                for keyvalue in paramString.split('&'):
-                    (key, val) = keyvalue.split('=')
-                    parameters[key] = val
+            filePath, parameters = fileRequestedPath.split('?')
+            filePath = filePath[1:]
         else:
             filePath = fileRequestedPath
-
-        filePath = '.' + filePath
+            filePath = filePath[1:]
 
     return (filePath, parameters)
 
@@ -106,17 +101,25 @@ def executeScript(csocket, filepath, parameters, method):
         respondToClient(csocket, header, ERR_PAGE_500, 'GET')
         return
 
+    # Set up environment for subprocess
+    procEnv = os.environ.copy()
+    procEnv['REQUEST_METHOD'] = method
+    procEnv['SERVER_NAME'] = SERVER_NAME
+    procEnv['SERVER_NAME'] = str(ASSIGNED_PORT_NUM)
+    procEnv['SERVER_PROTOCOL'] = SERVER_PROTOCOL
+
     execInformation['program'] = prog
 
     if method == 'GET':
-        # Create environment
-        procEnv = os.environ.copy()
-        for param in parameters:
-            procEnv[param] = parameters[param]
-
+        # Finish setting up environment
+        procEnv['QUERY_STRING'] = parameters
         execInformation['environment'] = procEnv
         respondToClient(csocket, header, filepath, method, True, execInformation)
-    else:
+    elif method == 'POST':
+        # Finish setting up environment
+        procEnv['CONTENT_LENGTH'] = str(len(parameters))
+        execInformation['environment'] = procEnv
+        # POST requires communicating parameters to subprocess
         execInformation['parameters'] = parameters
         respondToClient(csocket, header, filepath, method, True, execInformation)
 
@@ -156,27 +159,40 @@ def respondToClient(csocket, header, filepath, method, script=False, execInfo=No
     socketFile = None
 
     try:
+        # Get a file handle for the socket and write the header first
         socketFile = csocket.makefile('w')
-        socketFile.write(header)
-        socketFile.flush()
 
         # If not a script, just output the file
         if not script and method == 'GET':
+            socketFile.write(header)
+            socketFile.flush()
             with open(filepath, 'r') as f:
                 for line in f:
                     socketFile.write(line)
+
         # If script and GET, execute w/ params in environment
         elif script and method == 'GET':
-            program = execInfo['program']
-            environment = execInfo['environment']
-            proc = Popen([program, filePath], env=environment, stdout=socketFile)
+            socketFile.write(header)
+            socketFile.flush()
+            proc = Popen(
+                [execInfo['program'], filePath],
+                env=execInfo['environment'],
+                stdout=socketFile)
+
         # If script and POST, execute w/ params as stdin
         elif script and method == 'POST':
-            program = execInfo['program']
-            parameters = execInfo['parameters']
-            proc = Popen([program, filePath], stdin=PIPE, stdout=socketFile)
-            proc.communicate(parameters)
-    except Exception:
+            socketFile.write(header)
+            socketFile.flush()
+            proc = Popen(
+                [execInfo['program'], filePath],
+                env=execInfo['environment'],
+                stdin=PIPE,
+                stdout=socketFile)
+
+            # Send parameters
+            proc.communicate(input=execInfo['parameters'])
+
+    except:
         traceback.print_exc()
     finally:
         if socketFile: socketFile.close()
@@ -198,8 +214,10 @@ def createHttpHeaders(status, statusMsg, cgi=False, contentType=None):
     """
     messageArray = []
     messageArray.append('HTTP/1.0 {code} {msg}\n'.format(code=status, msg=statusMsg))
+    messageArray.append('Server:{0}\n'.format(SERVER_NAME))
 
     if not cgi and contentType:
+        # CGI script is responsible for generating this.
         messageArray.append('Content-Type:{0}\n\n'.format(contentType))
 
     return ''.join(messageArray)
@@ -210,35 +228,33 @@ def createHttpHeaders(status, statusMsg, cgi=False, contentType=None):
 # ------------------------------------------------------------------------------
 
 try:
+    # Descend into document root
+    os.chdir(DOCUMENT_ROOT)
     # Create server socket, listen and accept connections
     address = (HOST, ASSIGNED_PORT_NUM)
     serverSocket = startServer(address, socket.SOMAXCONN)
 
     while True:
         clientSocket, clientAddress = serverSocket.accept()
-
-        print "\nAccepted the client connection:"
-        print "Address: {0}".format(clientAddress[0])
-        print "   Port: {0}\n".format(clientSocket.getsockname()[1])
+        print "Accepted Client: {0}, {1}".format(clientAddress[0], clientSocket.getsockname()[1])
 
         # Receive data from Client
-        clientMessage = getClientMessage(clientSocket)
+        clientMessage = clientSocket.recv(MAX_PACKET_SIZE)
 
         # Process Client message
         clientLines = clientMessage.split('\n')
         firstLine = clientLines[0].split(' ') if clientLines[0] else []
 
-
         if firstLine and firstLine[0] and firstLine[1]:
-            requestMethod = (clientLines[0].split(' '))[0]
-            fileRequested = (clientLines[0].split(' '))[1]
+            requestMethod, fileRequested = (clientLines[0].split(' '))[0:2]
             (filePath, parameters) = getPathAndParams(fileRequested)
 
-            if (os.path.isdir(filePath)):
-                filePath = filePath + 'index.html' if filePath[-1] == '/' else '/index.html'
+            # If directory, try to server index.html
+            if os.path.isdir(filePath):
+                filePath += 'index.html' if filePath[-1] == '/' else '/index.html'
 
             if requestMethod == 'GET' or requestMethod == 'POST':
-                if (os.path.exists(filePath)):
+                if (os.path.isfile(filePath)):
                     # Execute script if CGI
                     if filePath.find('.cgi') != -1:
                         if requestMethod == 'GET':
