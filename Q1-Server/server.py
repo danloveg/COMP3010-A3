@@ -77,6 +77,8 @@ def getPathAndParams(fileRequestedPath):
         else:
             filePath = fileRequestedPath
             filePath = filePath[1:]
+    else:
+        filePath = 'index.html'
 
     return (filePath, parameters)
 
