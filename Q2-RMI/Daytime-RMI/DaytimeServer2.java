@@ -5,6 +5,7 @@
  */
 
 import java.io.*;
+import java.rmi.*;
 import java.util.IllegalFormatException;
 import java.util.Date;
 
