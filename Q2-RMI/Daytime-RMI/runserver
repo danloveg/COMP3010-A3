@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# If a program does not exit with zero status, exit
+checkExitStatus() {
+    if [ $? -ne 0 ]; then
+        exit $?
+    fi
+}
+
+
 if [ $# -ne 1 ]; then
     echo "One parameter is expected."
     echo "Example: ./runserver.sh 15000"
@@ -7,10 +15,12 @@ if [ $# -ne 1 ]; then
 else
     echo "Compiling files..."
     make
+    checkExitStatus
 
     echo
     echo "Creating RMI stubs..."
     make rmic
+    checkExitStatus
 
     echo
     echo "Starting Server..."
