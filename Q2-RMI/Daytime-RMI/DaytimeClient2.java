@@ -16,9 +16,12 @@ public class DaytimeClient2 {
             if (args.length != 2) throw new IllegalArgumentException("Expects two arguments");
             String hostname = args[0];
             int port = Integer.parseInt(args[1]);
+
+            // Create the URL to the registry
             String objectName = "CurrentDate";
             String url = "//" + hostname + ":" + port + "/" + objectName;
 
+            // Get the object using the created URL
             DateInterface date = (DateInterface) Naming.lookup(url);
             System.out.print("Here is the timestamp received from the server: ");
             System.out.println(date.echoDate());
