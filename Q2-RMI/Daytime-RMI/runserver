@@ -1,0 +1,20 @@
+#!/bin/bash
+
+if [ $# -ne 1 ]; then
+    echo "One parameter is expected."
+    echo "Example: ./runserver.sh 15000"
+    exit 1
+else
+    echo "Compiling files..."
+    make
+
+    echo
+    echo "Creating RMI stubs..."
+    make rmic
+
+    echo
+    echo "Starting Server..."
+    java DaytimeServer2 $1
+
+    exit 0
+fi
