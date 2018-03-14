@@ -26,7 +26,7 @@ public class DaytimeServer2 {
             System.out.println("Registry started.");
 
             // Create an object in the registry
-            System.out.println("Server starting. Updating date every " + NUM_SECS + " seconds.");
+            System.out.println("Server started. Updating date every " + NUM_SECS + " seconds.");
             while (true) {
                 // Get the current date
                 Date timestamp = new Date();
