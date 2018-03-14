@@ -8,9 +8,9 @@ checkExitStatus() {
 }
 
 
-if [ $# -ne 1 ]; then
-    echo "One parameter is expected."
-    echo "Example: ./runserver 15000"
+if [ $# -ne 2 ]; then
+    echo "Two parameters are expected."
+    echo "Example: ./runclient chipmunk.cs.umanitoba.ca 15000"
     exit 1
 else
     echo "Compiling files..."
@@ -23,8 +23,8 @@ else
     checkExitStatus
 
     echo
-    echo "Starting Server..."
-    java DaytimeServer2 $1
+    echo "Starting Client.."
+    java DaytimeClient2 $1 $2
 
     exit 0
 fi
