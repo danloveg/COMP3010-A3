@@ -22,11 +22,6 @@ public class DaytimeServer2 {
             int port = Integer.parseInt(args[0]);
             String objName = "CurrentDate";
 
-            // We need to set the RMI host name so the client can connect
-            String host = InetAddress.getLocalHost().getHostName();
-            host = "rmi://" + host + ":" + port;
-            System.setProperty("java.rmi.server.hostname", host);
-
             // Start the registry at the specified port, in this process
             Registry registry = LocateRegistry.createRegistry(port);
 
