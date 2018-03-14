@@ -10,12 +10,14 @@ import java.util.IllegalFormatException;
 
 public class DaytimeClient2 {
     public static void main(String[] args) {
+        System.setProperty("java.security.policy", "./java.policy");
+
         try {
             if (args.length != 2) throw new IllegalArgumentException("Expects two arguments");
             String hostname = args[0];
             int port = Integer.parseInt(args[1]);
             String objectName = "CurrentDate";
-            String url = "rmi://" + hostname + ":" + port + "/" + objectName;
+            String url = "//" + hostname + ":" + port + "/" + objectName;
 
             DateInterface date = (DateInterface) Naming.lookup(url);
             System.out.print("Here is the timestamp received from the server: ");
