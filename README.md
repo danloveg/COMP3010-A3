@@ -20,3 +20,5 @@ Using a terminal, descend into the Q2-RMI directory: `cd Q2-RMI`. There are two 
 To test the server locally, run the server on your local machine and sepcify a port: `./runserver <port>`. This builds the files and starts up the registry. To connect to the server locally, start the client on the same machine: `./runclient localhost <same-port>`. The client should output the date.
 
 To test the server remotely, run the server with whichever port you like on a remote machine: `./runserver <port>`. To connect to the server remotely, start the client on a different machine: `./runclient <remote-name> <same-port>`. The client should output the date.
+
+**Note:** If you run the server in the background, you will need to kill the RMI registry separate from the server. I use `lsof -i :port` to find the registry and kill the process associated with it.
