@@ -15,8 +15,6 @@ public class DaytimeServer2 {
     private static int NUM_SECS = 1;
 
     public static void main(String[] args) {
-        System.setProperty("java.security.policy", "./java.policy");
-
         try {
             if (args.length != 1) throw new IllegalArgumentException("Expects one argument");
             int port = Integer.parseInt(args[0]);

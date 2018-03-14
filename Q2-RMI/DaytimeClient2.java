@@ -1,6 +1,6 @@
 /**
  * DaytimeClient2.java
- * 
+ *
  * Author: Daniel Lovegrove
  */
 
@@ -10,8 +10,6 @@ import java.util.IllegalFormatException;
 
 public class DaytimeClient2 {
     public static void main(String[] args) {
-        System.setProperty("java.security.policy", "./java.policy");
-
         try {
             if (args.length != 2) throw new IllegalArgumentException("Expects two arguments");
             String hostname = args[0];
