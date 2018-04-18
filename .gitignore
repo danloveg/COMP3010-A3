@@ -1,3 +1,8 @@
 # Ignore java class file
 *.class
 
+# Ignore compiled python code
+*.pyc
+
+# Visual Studio Code Folder
+.vscode/
