@@ -39,8 +39,8 @@ class HTTPServer:
     def main(self):
         try:
             os.chdir(self.DOCUMENT_ROOT)
-            self.createserversocket(socket.SOMAXCONN)
-            self.listentoconnections()
+            self.createserversocket()
+            self.listentoconnections(socket.SOMAXCONN)
         except KeyboardInterrupt as k:
             print "\nProgram interrupted. Exiting..."
         except Exception as exc:
@@ -50,13 +50,13 @@ class HTTPServer:
                 self.serverSocket.close()
 
 
-    def createserversocket(self, numconnections):
+    def createserversocket(self):
         self.serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.serverSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.serverSocket.bind((self.HOST, self.ASSIGNED_PORT_NUM))
 
 
-    def listentoconnections(self):
+    def listentoconnections(self, numconnections):
         self.serverSocket.listen(numconnections)
         print "Server is listening for connections on port {0}".format(self.ASSIGNED_PORT_NUM)
 
