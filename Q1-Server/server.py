@@ -95,6 +95,30 @@ class HTTPServer:
 
 
     def respondtoclient(self, clientsocket, clientquery):
+        if self.setqueryheader(clientsocket, clientquery):
+            socketFile = None
+            try:
+                socketFile = clientsocket.makefile('w')
+                socketFile.write(clientquery.getheader())
+                socketFile.flush()
+
+                if clientquery.getfiletype() != 'cgi':
+                    self.sendfiletoclient(socketFile, clientquery)
+                elif clientquery.getrequestmethod() == 'GET':
+                    self.executescriptget(socketFile, clientquery)
+                elif clientquery.getrequestmethod() == 'POST':
+                    self.executescriptpost(socketFile, clientquery)
+                else:
+                    self.senderrorpage(clientsocket, 501)
+
+            except:
+                traceback.print_exc()
+            finally:
+                if socketFile:
+                    socketFile.close()
+    
+
+    def setqueryheader(self, clientsocket, clientquery):
         fileType = clientquery.getfiletype()
 
         if fileType == 'cgi':
@@ -105,30 +129,10 @@ class HTTPServer:
             header = self.createfilehttpheader(200, 'OK', 'text/html')
         else:
             self.senderrorpage(clientsocket, 501)
-            return
+            return False
 
         clientquery.setheader(header)
-
-        socketFile = None
-        try:
-            socketFile = clientsocket.makefile('w')
-            socketFile.write(header)
-            socketFile.flush()
-
-            if fileType != 'cgi':
-                self.sendfiletoclient(socketFile, clientquery)
-            elif clientquery.getrequestmethod() == 'GET':
-                self.executescriptget(socketFile, clientquery)
-            elif clientquery.getrequestmethod() == 'POST':
-                self.executescriptpost(socketFile, clientquery)
-            else:
-                self.senderrorpage(clientsocket, 501)
-
-        except:
-            traceback.print_exc()
-        finally:
-            if socketFile:
-                socketFile.close()
+        return True
 
 
     def sendfiletoclient(self, clientsocketfile, clientquery):
