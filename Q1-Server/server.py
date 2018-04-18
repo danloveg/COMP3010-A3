@@ -61,46 +61,57 @@ class HTTPServer:
         print "Server is listening for connections on port {0}".format(self.ASSIGNED_PORT_NUM)
 
         while True:
-            clientSocket, clientAddress = self.serverSocket.accept()
-            print "Accepted Client: {0}, {1}".format(clientAddress[0], clientSocket.getsockname()[1])
+            self.acceptclientconnections()
 
-            # Receive data from Client
-            clientMessage = clientSocket.recv(self.MAX_PACKET_SIZE)
 
-            # Process Client message
-            clientLines = clientMessage.split('\n')
-            firstLine = clientLines[0].split(' ') if clientLines[0] else []
+    def acceptclientconnections(self):
+        clientSocket, clientAddress = self.serverSocket.accept()
+        print "Accepted Client: {0}, {1}".format(clientAddress[0], clientSocket.getsockname()[1])
 
-            if firstLine and firstLine[0] and firstLine[1]:
-                requestMethod, fileRequested = (clientLines[0].split(' '))[0:2]
-                filePath = self.getrelativefilepath(fileRequested)
-                parameters = self.geturiparameters(fileRequested)
+        clientLines = self.receiveclientmessageaslist(clientSocket)
 
-                # If directory, try to server index.html
-                if os.path.isdir(filePath):
-                    filePath += 'index.html' if filePath[-1] == '/' else '/index.html'
+        if self.ishttpmessage(clientLines[0]):
+            requestMethod, fileRequested = (clientLines[0].split(' '))[0:2]
+            filePath = self.getrelativefilepath(fileRequested)
+            parameters = self.geturiparameters(fileRequested)
 
-                if requestMethod == 'GET' or requestMethod == 'POST':
-                    if os.path.isfile(filePath):
-                        # Execute script if CGI
-                        if filePath.find('.cgi') != -1:
-                            if requestMethod == 'GET':
-                                self.executescript(clientSocket, filePath, parameters, 'GET')
-                            else:
-                                self.executescript(clientSocket, filePath, clientLines[-1], 'POST')
-                        # Otherwise spit the file out to the client
+            # If directory, try to server index.html
+            if os.path.isdir(filePath):
+                filePath += 'index.html' if filePath[-1] == '/' else '/index.html'
+
+            if requestMethod == 'GET' or requestMethod == 'POST':
+                if os.path.isfile(filePath):
+                    # Execute script if CGI
+                    if filePath.find('.cgi') != -1:
+                        if requestMethod == 'GET':
+                            self.executescript(clientSocket, filePath, parameters, 'GET')
                         else:
-                            self.outputfiletoclient(clientSocket, filePath)
+                            self.executescript(clientSocket, filePath, clientLines[-1], 'POST')
+                    # Otherwise spit the file out to the client
                     else:
-                        # File does not exist. Send 404
-                        header = self.createhttpheaders(404, 'Not Found', False, 'text/html')
-                        self.respondtoclient(clientSocket, header, self.ERR_PAGE_404, 'GET')
+                        self.outputfiletoclient(clientSocket, filePath)
                 else:
-                    header = self.createhttpheaders(501, 'Not Implemented', False, 'text/html')
-                    self.respondtoclient(clientSocket, header, self.ERR_PAGE_501, 'GET')
+                    # File does not exist. Send 404
+                    header = self.createhttpheaders(404, 'Not Found', False, 'text/html')
+                    self.respondtoclient(clientSocket, header, self.ERR_PAGE_404, 'GET')
+            else:
+                header = self.createhttpheaders(501, 'Not Implemented', False, 'text/html')
+                self.respondtoclient(clientSocket, header, self.ERR_PAGE_501, 'GET')
+        else:
+            print "Client sent bad HTTP message. Ignoring."
 
-            if clientSocket:
-                clientSocket.close()
+        if clientSocket:
+            clientSocket.close()
+
+
+    def receiveclientmessageaslist(self, clientsocket):
+        message = clientsocket.recv(self.MAX_PACKET_SIZE)
+        return message.split('\n')
+
+
+    def ishttpmessage(self, firstlineofmessage):
+        firstlinesplit = firstlineofmessage.split(' ') if firstlineofmessage else []
+        return firstlinesplit and len(firstlinesplit) >= 2
 
 
     def getrelativefilepath(self, requestedfilepath):
