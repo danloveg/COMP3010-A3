@@ -33,14 +33,68 @@ class HTTPServer:
 
 
     def __init__(self):
-        self.clientSocket = None
-        self.socketFile = None
         self.serverSocket = None
 
 
-    # ------------------------------------------------------------------------------
-    # Function definitions
-    # ------------------------------------------------------------------------------
+    def main(self):
+        try:
+            # Descend into document root
+            os.chdir(self.DOCUMENT_ROOT)
+            # Create server socket, listen and accept connections
+            self.serverSocket = self.startserver(socket.SOMAXCONN)
+
+            while True:
+                clientSocket, clientAddress = self.serverSocket.accept()
+                print "Accepted Client: {0}, {1}".format(clientAddress[0], self.clientSocket.getsockname()[1])
+
+                # Receive data from Client
+                clientMessage = clientSocket.recv(self.MAX_PACKET_SIZE)
+
+                # Process Client message
+                clientLines = clientMessage.split('\n')
+                firstLine = clientLines[0].split(' ') if clientLines[0] else []
+
+                if firstLine and firstLine[0] and firstLine[1]:
+                    requestMethod, fileRequested = (clientLines[0].split(' '))[0:2]
+                    (filePath, parameters) = self.getpathandparams(fileRequested)
+
+                    # If directory, try to server index.html
+                    if os.path.isdir(filePath):
+                        filePath += 'index.html' if filePath[-1] == '/' else '/index.html'
+
+                    if requestMethod == 'GET' or requestMethod == 'POST':
+                        if os.path.isfile(filePath):
+                            # Execute script if CGI
+                            if filePath.find('.cgi') != -1:
+                                if requestMethod == 'GET':
+                                    self.executescript(clientSocket, filePath, parameters, 'GET')
+                                else:
+                                    self.executescript(clientSocket, filePath, clientLines[-1], 'POST')
+                            # Otherwise spit the file out to the client
+                            else:
+                                self.outputfiletoclient(clientSocket, filePath)
+                        else:
+                            # File does not exist. Send 404
+                            header = self.createhttpheaders(404, 'Not Found', False, 'text/html')
+                            self.respondtoclient(clientSocket, header, self.ERR_PAGE_404, 'GET')
+                    else:
+                        header = self.createhttpheaders(501, 'Not Implemented', False, 'text/html')
+                        self.respondtoclient(clientSocket, header, self.ERR_PAGE_501, 'GET')
+
+                # Close client socket when done
+                if clientSocket:
+                    clientSocket.close()
+
+        except KeyboardInterrupt as k:
+            print "\nProgram interrupted. Exiting..."
+
+        except Exception as exc:
+            traceback.print_exc()
+
+        finally:
+            if self.serverSocket:
+                self.serverSocket.close()
+
 
     def startserver(self, numconnections):
         """
@@ -225,66 +279,3 @@ class HTTPServer:
             messageArray.append('Content-Type:{0}\n\n'.format(contentType))
 
         return ''.join(messageArray)
-
-
-    def main(self):
-        try:
-            # Descend into document root
-            os.chdir(self.DOCUMENT_ROOT)
-            # Create server socket, listen and accept connections
-            address = (self.HOST, self.ASSIGNED_PORT_NUM)
-            self.serverSocket = self.startserver(socket.SOMAXCONN)
-
-            while True:
-                self.clientSocket, clientAddress = self.serverSocket.accept()
-                print "Accepted Client: {0}, {1}".format(clientAddress[0], self.clientSocket.getsockname()[1])
-
-                # Receive data from Client
-                clientMessage = self.clientSocket.recv(self.MAX_PACKET_SIZE)
-
-                # Process Client message
-                clientLines = clientMessage.split('\n')
-                firstLine = clientLines[0].split(' ') if clientLines[0] else []
-
-                if firstLine and firstLine[0] and firstLine[1]:
-                    requestMethod, fileRequested = (clientLines[0].split(' '))[0:2]
-                    (filePath, parameters) = self.getpathandparams(fileRequested)
-
-                    # If directory, try to server index.html
-                    if os.path.isdir(filePath):
-                        filePath += 'index.html' if filePath[-1] == '/' else '/index.html'
-
-                    if requestMethod == 'GET' or requestMethod == 'POST':
-                        if os.path.isfile(filePath):
-                            # Execute script if CGI
-                            if filePath.find('.cgi') != -1:
-                                if requestMethod == 'GET':
-                                    self.executescript(self.clientSocket, filePath, parameters, 'GET')
-                                else:
-                                    self.executescript(self.clientSocket, filePath, clientLines[-1], 'POST')
-                            # Otherwise spit the file out to the client
-                            else:
-                                self.outputfiletoclient(self.clientSocket, filePath)
-                        else:
-                            # File does not exist. Send 404
-                            header = self.createhttpheaders(404, 'Not Found', False, 'text/html')
-                            self.respondtoclient(self.clientSocket, header, self.ERR_PAGE_404, 'GET')
-                    else:
-                        header = self.createhttpheaders(501, 'Not Implemented', False, 'text/html')
-                        self.respondtoclient(self.clientSocket, header, self.ERR_PAGE_501, 'GET')
-
-                # Close client socket when done
-                if self.clientSocket:
-                    self.clientSocket.close()
-
-        except KeyboardInterrupt as k:
-            print "\nProgram interrupted. Exiting..."
-
-        except Exception as exc:
-            traceback.print_exc()
-
-        finally:
-            if self.clientSocket:
-                self.clientSocket.close()
-            if self.serverSocket:
-                self.serverSocket.close()
