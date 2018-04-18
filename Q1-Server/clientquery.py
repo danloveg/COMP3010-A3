@@ -42,6 +42,18 @@ class ClientQuery:
         return parameters
 
 
+    def isvalidrequestmethod(self):
+        return self._requestMethod == 'GET' or self._requestMethod == 'POST'
+
+
+    def fileexists(self):
+        return os.path.isfile(self._filePath)
+    
+
+    def fileisscript(self):
+        return self._filePath.find('.cgi') != -1
+
+
     def getrequestmethod(self):
         return self._requestMethod
 

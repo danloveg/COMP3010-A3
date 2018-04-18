@@ -118,6 +118,23 @@ class HTTPServer:
         return firstlinesplit and len(firstlinesplit) >= 2
     
 
+    def serverequestoclient(self, clientsocket, clientquery):
+        if clientquery.isvalidrequestmethod():
+            if clientquery.fileexists():
+                if clientquery.fileisscript()
+                    self.executescript(clientsocket, clientquery)
+                else:
+                    self.outputfiletoclient(clientsocket, clientquery)
+            else:
+                header = self.createhttpheaders(404, 'Not Found', False, 'text/html')
+                fauxQueryFirstLine = ["GET {} HTTP/1.0".format(self.ERR_PAGE_404)]
+                self.respondtoclient(clientSocket, header, ClientQuery(fauxQueryFirstLine))
+        else:
+            header = self.createhttpheaders(501, 'Not Implemented', False, 'text/html')
+            fauxQueryFirstLine = ["GET {} HTTP/1.0".format(self.ERR_PAGE_501)]
+            self.respondtoclient(clientSocket, header, ClientQuery(fauxQueryFirstLine))
+
+
     def getrequestmethod(self, firstlineofmessage):
         return firstlineofmessage.split(' ')[0]
     
