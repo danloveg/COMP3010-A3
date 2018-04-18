@@ -1,0 +1,7 @@
+#!/usr/bin/python
+
+ASSIGNED_PORT_NUM = 15048
+MAX_PACKET_SIZE = 2048
+DOCUMENT_ROOT = './site/'
+SERVER_NAME = 'python-web-server'
+SERVER_PROTOCOL = 'HTTP/1.0'
