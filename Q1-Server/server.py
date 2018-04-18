@@ -111,7 +111,7 @@ class HTTPServer:
 
         socketFile = None
         try:
-            socketFile = csocket.makefile('w')
+            socketFile = clientsocket.makefile('w')
             socketFile.write(header)
             socketFile.flush()
 
@@ -138,7 +138,7 @@ class HTTPServer:
 
 
     def executescriptget(self, clientsocketfile, clientquery):
-        proc = Popen(
+        Popen(
             [clientquery.getexecutingprogram(), clientquery.getfilepath()],
             env=clientquery.getenvironment(),
             stdout=clientsocketfile)
