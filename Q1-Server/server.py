@@ -39,7 +39,7 @@ class HTTPServer:
     def main(self):
         try:
             os.chdir(self.DOCUMENT_ROOT)
-            self.serverSocket = self.startserver(socket.SOMAXCONN)
+            self.createserversocket(socket.SOMAXCONN)
             self.listentoconnections()
         except KeyboardInterrupt as k:
             print "\nProgram interrupted. Exiting..."
@@ -50,10 +50,19 @@ class HTTPServer:
                 self.serverSocket.close()
 
 
+    def createserversocket(self, numconnections):
+        self.serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.serverSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.serverSocket.bind((self.HOST, self.ASSIGNED_PORT_NUM))
+
+
     def listentoconnections(self):
+        self.serverSocket.listen(numconnections)
+        print "Server is listening for connections on port {0}".format(self.ASSIGNED_PORT_NUM)
+
         while True:
             clientSocket, clientAddress = self.serverSocket.accept()
-            print "Accepted Client: {0}, {1}".format(clientAddress[0], self.clientSocket.getsockname()[1])
+            print "Accepted Client: {0}, {1}".format(clientAddress[0], clientSocket.getsockname()[1])
 
             # Receive data from Client
             clientMessage = clientSocket.recv(self.MAX_PACKET_SIZE)
@@ -64,7 +73,8 @@ class HTTPServer:
 
             if firstLine and firstLine[0] and firstLine[1]:
                 requestMethod, fileRequested = (clientLines[0].split(' '))[0:2]
-                (filePath, parameters) = self.getpathandparams(fileRequested)
+                filePath = self.getrelativefilepath(fileRequested)
+                parameters = self.geturiparameters(fileRequested)
 
                 # If directory, try to server index.html
                 if os.path.isdir(filePath):
@@ -93,36 +103,22 @@ class HTTPServer:
                 clientSocket.close()
 
 
-    def startserver(self, numconnections):
-        """
-        Create a server socket for the specified address and return the socket
-        Parameters:
-            - addr: Host address and port number in a list (<address>, <port>)
-            - numConnections: The max number of connections to allow
-        """
-        ssocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        ssocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        ssocket.bind((self.HOST, self.ASSIGNED_PORT_NUM))
-        ssocket.listen(numconnections)
-        print "Server is listening for connections on port {0}".format(self.ASSIGNED_PORT_NUM)
-        return ssocket
-
-
-    def getpathandparams(self, requestedfilepath):
-        filePath = ""
-        parameters = ""
-
+    def getrelativefilepath(self, requestedfilepath):
         if requestedfilepath != '/':
-            if requestedfilepath.find('?') != -1:
-                filePath, parameters = requestedfilepath.split('?')
-                filePath = filePath[1:]
-            else:
-                filePath = requestedfilepath
-                filePath = filePath[1:]
+            filePath = requestedfilepath.split('?')[0][1:]
         else:
             filePath = 'index.html'
 
-        return (filePath, parameters)
+        return filePath
+
+
+    def geturiparameters(self, requestedfilepath):
+        if requestedfilepath.find('?') != -1:
+            parameters = requestedfilepath.split('?')[1]
+        else:
+            parameters = ""
+
+        return parameters
 
 
     def executescript(self, csocket, filepath, parameters, method):
