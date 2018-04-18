@@ -38,62 +38,59 @@ class HTTPServer:
 
     def main(self):
         try:
-            # Descend into document root
             os.chdir(self.DOCUMENT_ROOT)
-            # Create server socket, listen and accept connections
             self.serverSocket = self.startserver(socket.SOMAXCONN)
-
-            while True:
-                clientSocket, clientAddress = self.serverSocket.accept()
-                print "Accepted Client: {0}, {1}".format(clientAddress[0], self.clientSocket.getsockname()[1])
-
-                # Receive data from Client
-                clientMessage = clientSocket.recv(self.MAX_PACKET_SIZE)
-
-                # Process Client message
-                clientLines = clientMessage.split('\n')
-                firstLine = clientLines[0].split(' ') if clientLines[0] else []
-
-                if firstLine and firstLine[0] and firstLine[1]:
-                    requestMethod, fileRequested = (clientLines[0].split(' '))[0:2]
-                    (filePath, parameters) = self.getpathandparams(fileRequested)
-
-                    # If directory, try to server index.html
-                    if os.path.isdir(filePath):
-                        filePath += 'index.html' if filePath[-1] == '/' else '/index.html'
-
-                    if requestMethod == 'GET' or requestMethod == 'POST':
-                        if os.path.isfile(filePath):
-                            # Execute script if CGI
-                            if filePath.find('.cgi') != -1:
-                                if requestMethod == 'GET':
-                                    self.executescript(clientSocket, filePath, parameters, 'GET')
-                                else:
-                                    self.executescript(clientSocket, filePath, clientLines[-1], 'POST')
-                            # Otherwise spit the file out to the client
-                            else:
-                                self.outputfiletoclient(clientSocket, filePath)
-                        else:
-                            # File does not exist. Send 404
-                            header = self.createhttpheaders(404, 'Not Found', False, 'text/html')
-                            self.respondtoclient(clientSocket, header, self.ERR_PAGE_404, 'GET')
-                    else:
-                        header = self.createhttpheaders(501, 'Not Implemented', False, 'text/html')
-                        self.respondtoclient(clientSocket, header, self.ERR_PAGE_501, 'GET')
-
-                # Close client socket when done
-                if clientSocket:
-                    clientSocket.close()
-
+            self.listentoconnections()
         except KeyboardInterrupt as k:
             print "\nProgram interrupted. Exiting..."
-
         except Exception as exc:
             traceback.print_exc()
-
         finally:
             if self.serverSocket:
                 self.serverSocket.close()
+
+
+    def listentoconnections(self):
+        while True:
+            clientSocket, clientAddress = self.serverSocket.accept()
+            print "Accepted Client: {0}, {1}".format(clientAddress[0], self.clientSocket.getsockname()[1])
+
+            # Receive data from Client
+            clientMessage = clientSocket.recv(self.MAX_PACKET_SIZE)
+
+            # Process Client message
+            clientLines = clientMessage.split('\n')
+            firstLine = clientLines[0].split(' ') if clientLines[0] else []
+
+            if firstLine and firstLine[0] and firstLine[1]:
+                requestMethod, fileRequested = (clientLines[0].split(' '))[0:2]
+                (filePath, parameters) = self.getpathandparams(fileRequested)
+
+                # If directory, try to server index.html
+                if os.path.isdir(filePath):
+                    filePath += 'index.html' if filePath[-1] == '/' else '/index.html'
+
+                if requestMethod == 'GET' or requestMethod == 'POST':
+                    if os.path.isfile(filePath):
+                        # Execute script if CGI
+                        if filePath.find('.cgi') != -1:
+                            if requestMethod == 'GET':
+                                self.executescript(clientSocket, filePath, parameters, 'GET')
+                            else:
+                                self.executescript(clientSocket, filePath, clientLines[-1], 'POST')
+                        # Otherwise spit the file out to the client
+                        else:
+                            self.outputfiletoclient(clientSocket, filePath)
+                    else:
+                        # File does not exist. Send 404
+                        header = self.createhttpheaders(404, 'Not Found', False, 'text/html')
+                        self.respondtoclient(clientSocket, header, self.ERR_PAGE_404, 'GET')
+                else:
+                    header = self.createhttpheaders(501, 'Not Implemented', False, 'text/html')
+                    self.respondtoclient(clientSocket, header, self.ERR_PAGE_501, 'GET')
+
+            if clientSocket:
+                clientSocket.close()
 
 
     def startserver(self, numconnections):
@@ -111,26 +108,16 @@ class HTTPServer:
         return ssocket
 
 
-    def getpathandparams(self, fileRequestedPath):
-        """
-        Get the file path and any GET parameters from the request path the client
-        sent. Returns the path and params in a tuple (<path>, <params>). If the path
-        is /, both strings are empty, if there are no parameters, the parameters
-        string is empty.
-        Parameters:
-            - fileRequestedPath: A path of the form <path>?<params>
-        Returns:
-            - The full path, and any parameters after the '?' in a string
-        """
+    def getpathandparams(self, requestedfilepath):
         filePath = ""
         parameters = ""
 
-        if fileRequestedPath != '/':
-            if fileRequestedPath.find('?') != -1:
-                filePath, parameters = fileRequestedPath.split('?')
+        if requestedfilepath != '/':
+            if requestedfilepath.find('?') != -1:
+                filePath, parameters = requestedfilepath.split('?')
                 filePath = filePath[1:]
             else:
-                filePath = fileRequestedPath
+                filePath = requestedfilepath
                 filePath = filePath[1:]
         else:
             filePath = 'index.html'
@@ -275,7 +262,6 @@ class HTTPServer:
         messageArray.append('Server:{0}\n'.format(self.SERVER_NAME))
 
         if not cgi and contentType:
-            # CGI script is responsible for generating this.
             messageArray.append('Content-Type:{0}\n\n'.format(contentType))
 
         return ''.join(messageArray)
