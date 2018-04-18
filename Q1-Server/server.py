@@ -115,7 +115,7 @@ class HTTPServer:
             socketFile.write(header)
             socketFile.flush()
 
-            if fileType != 'cgi'
+            if fileType != 'cgi':
                 self.sendfiletoclient(socketFile, clientquery)
             elif clientquery.getrequestmethod() == 'GET':
                 self.executescriptget(socketFile, clientquery)
