@@ -155,7 +155,7 @@ class HTTPServer:
             stdin=PIPE,
             stdout=clientsocketfile)
 
-        proc.communicate(input=clientquery.getparamters())
+        proc.communicate(input=clientquery.getparameters())
 
 
     def createfilehttpheader(self, status, statusmessage, contenttype):
