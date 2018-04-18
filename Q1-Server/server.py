@@ -17,6 +17,7 @@ import socket
 import os
 from subprocess import PIPE, Popen
 import traceback
+from clientquery import ClientQuery
 
 class HTTPServer:
     # CONSTANTS
@@ -76,7 +77,9 @@ class HTTPServer:
             filePath = self.getrelativefilepath(fileRequested)
             parameters = self.geturiparameters(fileRequested)
 
-            # If directory, try to server index.html
+            query = ClientQuery(clientLines)
+
+            # If directory, try to serve index.html
             if os.path.isdir(filePath):
                 filePath += 'index.html' if filePath[-1] == '/' else '/index.html'
 
