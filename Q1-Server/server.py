@@ -71,7 +71,8 @@ class HTTPServer:
         clientLines = self.receiveclientmessageaslist(clientSocket)
 
         if self.ishttpmessage(clientLines[0]):
-            requestMethod, fileRequested = (clientLines[0].split(' '))[0:2]
+            requestMethod = self.getrequestmethod(clientLines[0])
+            fileRequested = self.getrequestedresourcepath(clientLines[0])
             filePath = self.getrelativefilepath(fileRequested)
             parameters = self.geturiparameters(fileRequested)
 
@@ -112,6 +113,14 @@ class HTTPServer:
     def ishttpmessage(self, firstlineofmessage):
         firstlinesplit = firstlineofmessage.split(' ') if firstlineofmessage else []
         return firstlinesplit and len(firstlinesplit) >= 2
+    
+
+    def getrequestmethod(self, firstlineofmessage):
+        return firstlineofmessage.split(' ')[0]
+    
+
+    def getrequestedresourcepath(self, firstlineofmessage):
+        return firstlineofmessage.split(' ')[1]
 
 
     def getrelativefilepath(self, requestedfilepath):
