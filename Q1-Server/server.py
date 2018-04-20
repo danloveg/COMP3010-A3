@@ -21,9 +21,9 @@ from clientquery import ClientQuery
 import const
 
 class HTTPServer:
-    ERR_PAGE_404 = './errorPages/404page.html'
-    ERR_PAGE_500 = './errorPages/500page.html'
-    ERR_PAGE_501 = './errorPages/501page.html'
+    ERR_PAGE_404 = '/errorPages/404page.html'
+    ERR_PAGE_500 = '/errorPages/500page.html'
+    ERR_PAGE_501 = '/errorPages/501page.html'
 
 
     def __init__(self):
@@ -87,38 +87,35 @@ class HTTPServer:
     def serverequestoclient(self, clientsocket, clientquery):
         if clientquery.isvalidrequestmethod():
             if clientquery.fileexists():
-                self.respondtoclient(clientsocket, clientquery)
+                self.determinewaytorespond(clientsocket, clientquery)
             else:
                 self.senderrorpage(clientsocket, 404)
         else:
             self.senderrorpage(clientsocket, 501)
 
 
-    def respondtoclient(self, clientsocket, clientquery):
-        if self.setqueryheader(clientsocket, clientquery):
-            socketFile = None
-            try:
-                socketFile = clientsocket.makefile('w')
-                socketFile.write(clientquery.getheader())
-                socketFile.flush()
+    def determinewaytorespond(self, clientsocket, clientquery):
+        filetypesupported = self.setqueryheader(clientsocket, clientquery)
 
-                if clientquery.getfiletype() != 'cgi':
-                    self.sendfiletoclient(socketFile, clientquery)
-                elif clientquery.getrequestmethod() == 'GET':
-                    self.executescriptget(socketFile, clientquery)
-                elif clientquery.getrequestmethod() == 'POST':
-                    self.executescriptpost(socketFile, clientquery)
-                else:
-                    self.senderrorpage(clientsocket, 501)
+        if filetypesupported:
+            socketFile = clientsocket.makefile('w')
+            socketFile.write(clientquery.getheader())
+            socketFile.flush()
 
-            except:
-                traceback.print_exc()
-            finally:
-                if socketFile:
-                    socketFile.close()
+            if clientquery.getfiletype() != 'cgi':
+                self.sendfiletoclient(socketFile, clientquery)
+            elif clientquery.getrequestmethod() == 'GET':
+                self.executescriptget(socketFile, clientquery)
+            elif clientquery.getrequestmethod() == 'POST':
+                self.executescriptpost(socketFile, clientquery)
+            else:
+                self.senderrorpage(clientsocket, 501)
+
+            socketFile.close()
     
 
     def setqueryheader(self, clientsocket, clientquery):
+        filetypesupported = True
         fileType = clientquery.getfiletype()
 
         if fileType == 'cgi':
@@ -129,10 +126,10 @@ class HTTPServer:
             header = self.createfilehttpheader(200, 'OK', 'text/html')
         else:
             self.senderrorpage(clientsocket, 501)
-            return False
+            filetypesupported = False
 
         clientquery.setheader(header)
-        return True
+        return filetypesupported
 
 
     def sendfiletoclient(self, clientsocketfile, clientquery):
@@ -161,7 +158,7 @@ class HTTPServer:
     def createfilehttpheader(self, status, statusmessage, contenttype):
         messageArray = []
         messageArray.append('HTTP/1.0 {} {}\n'.format(status, statusmessage))
-        messageArray.append('Content-Type:{}\n').format(contenttype)
+        messageArray.append('Content-Type:{}\n'.format(contenttype))
         messageArray.append('Server:{}\n\n'.format(const.SERVER_NAME))
         return ''.join(messageArray)
 
@@ -185,4 +182,4 @@ class HTTPServer:
             fauxQueryFirstLine = ["GET {} HTTP/1.0".format(self.ERR_PAGE_500)]
 
         newquery = ClientQuery(fauxQueryFirstLine, header)
-        self.respondtoclient(clientsocket, newquery)
+        self.determinewaytorespond(clientsocket, newquery)

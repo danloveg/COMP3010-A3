@@ -8,10 +8,13 @@ class ClientQuery:
         self._requestMethod = self._determinerequestmethod(clientmessageaslist[0])
         fileRequested = self._determinerequestedresourcepath(clientmessageaslist[0])
         self._filePath = self._determinerelativefilepath(fileRequested)
+        self._program = self._determineexecutingprogram(clientmessageaslist)
+
         if self._requestMethod == 'GET':
             self._parameters = self._determineuriparameters(fileRequested)
         elif self._requestMethod == 'POST':
             self._parameters = clientmessageaslist[-1]
+
         if header != None:
             self._header = header
 
@@ -59,6 +62,19 @@ class ClientQuery:
         return parameters
 
 
+    def _determineexecutingprogram(self, clientmessageaslist):
+        program = ""
+
+        if self.fileexists():
+            with open(self._filePath, 'r') as f:
+                firstLineOfFile = f.readline()
+
+            if firstLineOfFile[0:3].find('#!') != -1:
+                program = firstLineOfFile[2:].replace('\n', '')
+
+        return program
+
+
     def isvalidrequestmethod(self):
         return self._requestMethod == 'GET' or self._requestMethod == 'POST'
 
@@ -80,7 +96,7 @@ class ClientQuery:
 
 
     def getexecutingprogram(self):
-        return ""
+        return self._program
 
 
     def getfilepath(self):
