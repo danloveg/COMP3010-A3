@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 """
- COMP3010 A1 - Q1
+ COMP3010 A3 - Q1
 
  Author: Daniel Lovegrove
 
